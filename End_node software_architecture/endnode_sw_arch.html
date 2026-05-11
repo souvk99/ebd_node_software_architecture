@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EndNode — Software Architecture Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1218;
+  --bg3: #141820;
+  --panel: #161b24;
+  --border: #1e2836;
+  --border2: #253044;
+  --accent: #00d4ff;
+  --accent2: #7c3aed;
+  --accent3: #10b981;
+  --accent4: #f59e0b;
+  --accent5: #ef4444;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #475569;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Syne', sans-serif;
+  --glow: 0 0 20px rgba(0,212,255,0.15);
+  --glow2: 0 0 40px rgba(0,212,255,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+
+/* Scanline overlay */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+  pointer-events:none;z-index:1000
+}
+
+/* Grid background */
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0
+}
+
+/* TOP BAR */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:48px;
+  background:rgba(10,12,16,0.95);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;z-index:100
+}
+#topbar .logo{
+  font-family:var(--sans);font-size:14px;font-weight:800;
+  color:var(--accent);letter-spacing:2px;text-transform:uppercase
+}
+#topbar .sep{color:var(--border2);font-size:18px}
+#topbar .breadcrumb{display:flex;align-items:center;gap:8px;flex:1;overflow:hidden}
+.bc-item{
+  font-size:11px;color:var(--text2);cursor:pointer;
+  padding:3px 8px;border-radius:4px;
+  border:1px solid transparent;white-space:nowrap;
+  transition:all .2s
+}
+.bc-item:hover{color:var(--accent);border-color:var(--border2)}
+.bc-item.active{color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,0.06)}
+.bc-sep{color:var(--text3);font-size:10px}
+#home-btn{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.3);
+  color:var(--accent);padding:5px 12px;border-radius:6px;
+  cursor:pointer;font-family:var(--mono);font-size:11px;
+  transition:all .2s;white-space:nowrap
+}
+#home-btn:hover{background:rgba(0,212,255,0.15);box-shadow:var(--glow)}
+#depth-indicator{
+  font-size:10px;color:var(--text3);
+  padding:3px 8px;border:1px solid var(--border);border-radius:4px;
+  white-space:nowrap
+}
+
+/* MAIN AREA */
+#main{
+  position:fixed;top:48px;left:0;right:0;bottom:0;
+  display:flex;overflow:hidden
+}
+
+/* CANVAS PANEL */
+#canvas-panel{
+  flex:1;position:relative;overflow:hidden;
+  transition:all .4s cubic-bezier(.4,0,.2,1)
+}
+#canvas-panel.shrunk{flex:0 0 55%}
+
+/* SVG canvas */
+#diagram-svg{
+  width:100%;height:100%;position:absolute;inset:0
+}
+
+/* INFO PANEL */
+#info-panel{
+  width:0;overflow:hidden;
+  border-left:1px solid var(--border);
+  background:var(--panel);
+  transition:width .4s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column
+}
+#info-panel.open{width:45%}
+#info-header{
+  padding:16px 20px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  flex-shrink:0
+}
+#info-title{
+  font-family:var(--sans);font-size:18px;font-weight:700;
+  color:var(--text);line-height:1.3
+}
+#info-tag{
+  font-size:9px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  padding:3px 8px;border-radius:3px;margin-top:4px;
+  display:inline-block;
+}
+#close-panel{
+  background:none;border:1px solid var(--border);color:var(--text2);
+  width:28px;height:28px;border-radius:6px;cursor:pointer;
+  font-size:14px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .2s
+}
+#close-panel:hover{border-color:var(--accent);color:var(--accent)}
+#info-body{flex:1;overflow-y:auto;padding:16px 20px}
+#info-body::-webkit-scrollbar{width:4px}
+#info-body::-webkit-scrollbar-track{background:var(--bg)}
+#info-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Sub diagram in panel */
+#sub-diagram{margin-bottom:16px}
+#sub-diagram svg{width:100%;height:auto;display:block}
+
+/* Description */
+.desc-section{margin-bottom:16px}
+.desc-label{
+  font-size:9px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:8px;font-weight:600
+}
+.desc-text{
+  font-size:12px;color:var(--text2);line-height:1.8;
+  border-left:2px solid var(--border2);padding-left:12px
+}
+.step-list{list-style:none;padding:0}
+.step-list li{
+  display:flex;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)
+}
+.step-list li:last-child{border-bottom:none}
+.step-num{
+  flex-shrink:0;width:20px;height:20px;border-radius:4px;
+  background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);
+  color:var(--accent);font-size:9px;font-weight:700;
+  display:flex;align-items:center;justify-content:center
+}
+.chip{
+  display:inline-block;font-size:9px;font-weight:600;
+  padding:2px 6px;border-radius:3px;margin:2px 2px 2px 0;
+  border:1px solid
+}
+.chip-blue{color:#60a5fa;border-color:#1e3a5f;background:rgba(96,165,250,0.08)}
+.chip-green{color:#34d399;border-color:#064e3b;background:rgba(52,211,153,0.08)}
+.chip-amber{color:#fbbf24;border-color:#78350f;background:rgba(251,191,36,0.08)}
+.chip-red{color:#f87171;border-color:#7f1d1d;background:rgba(248,113,113,0.08)}
+.chip-purple{color:#a78bfa;border-color:#3b1f6e;background:rgba(167,139,250,0.08)}
+
+/* Nodes */
+.node{cursor:pointer;transition:all .15s}
+.node rect, .node polygon, .node ellipse{transition:all .15s}
+.node:hover rect{filter:brightness(1.3)}
+.node:hover polygon{filter:brightness(1.3)}
+.node.clickable rect{cursor:pointer}
+.node.active rect{stroke-width:2.5 !important}
+
+/* Tooltip */
+#tooltip{
+  position:fixed;background:var(--panel);border:1px solid var(--accent);
+  color:var(--accent);font-size:10px;padding:4px 10px;border-radius:4px;
+  pointer-events:none;opacity:0;transition:opacity .15s;z-index:200;
+  box-shadow:var(--glow);white-space:nowrap
+}
+
+/* Pulse animation for clickable nodes */
+@keyframes nodePulse{
+  0%,100%{opacity:1}50%{opacity:.7}
+}
+.pulse-hint{animation:nodePulse 2s ease-in-out infinite}
+
+/* Zoom controls */
+#zoom-controls{
+  position:absolute;bottom:16px;left:16px;
+  display:flex;gap:6px;z-index:50
+}
+.zoom-btn{
+  width:30px;height:30px;border-radius:6px;
+  background:var(--panel);border:1px solid var(--border2);
+  color:var(--text2);font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s
+}
+.zoom-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Status bar */
+#statusbar{
+  position:absolute;bottom:16px;right:16px;
+  font-size:10px;color:var(--text3);
+  background:var(--panel);border:1px solid var(--border);
+  padding:4px 10px;border-radius:4px
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">EndNode</div>
+  <div class="sep">|</div>
+  <div class="breadcrumb" id="breadcrumb">
+    <span class="bc-item active" onclick="goHome()">Root Architecture</span>
+  </div>
+  <button id="home-btn" onclick="goHome()">⌂ Root</button>
+  <div id="depth-indicator">DEPTH: 0</div>
+</div>
+
+<div id="main">
+  <div id="canvas-panel">
+    <svg id="diagram-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="zoom-controls">
+      <button class="zoom-btn" onclick="zoom(1.2)">+</button>
+      <button class="zoom-btn" onclick="zoom(0.8)">−</button>
+      <button class="zoom-btn" onclick="resetZoom()" style="font-size:10px">⟳</button>
+    </div>
+    <div id="statusbar">Click any node to explore</div>
+  </div>
+  <div id="info-panel">
+    <div id="info-header">
+      <div>
+        <div id="info-title">—</div>
+        <div id="info-tag"></div>
+      </div>
+      <button id="close-panel" onclick="closePanel()">✕</button>
+    </div>
+    <div id="info-body">
+      <div id="sub-diagram"></div>
+      <div id="info-content"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA STORE — All nodes and their detail content
+// ═══════════════════════════════════════════════════════════
+const NODE_DATA = {
+
+  // ── ROOT LEVEL ──────────────────────────────────────────
+  'power_on': {
+    title: 'Power-On / Reset',
+    tag: 'ENTRY POINT', tagColor: '#00d4ff',
+    desc: 'The absolute first code to execute after VDD stabilizes. The ROM bootloader is baked into the MCU — it cannot be modified or bypassed. It handles the earliest hardware bring-up before any user firmware runs.',
+    steps: [
+      'VDD ramps — power supervisor holds nRESET low until rail is stable',
+      'Internal RC oscillator starts (~8 MHz), provides initial clock',
+      'ROM bootloader reads boot mode pins (BOOT0/BOOT1)',
+      'If pins select internal flash: bootloader reads firmware vector table',
+      'Stack pointer loaded from vector table offset 0x00',
+      'Reset handler called — jumps into startup assembly',
+      'Startup code zeros .bss, copies .data from flash to RAM',
+      'SystemInit() called — configure clocks, FPU enable',
+      'C runtime ready — main() or secure boot entry called'
+    ],
+    chips: ['ROM BOOTLOADER','VECTOR TABLE','STACK INIT','SYSTEM CLOCK'],
+    chipColors: ['blue','green','amber','purple'],
+    subDiagram: 'power_on_detail'
+  },
+
+  'sig_verify': {
+    title: 'Verify Firmware Signature',
+    tag: 'SECURITY', tagColor: '#a78bfa',
+    desc: 'Cryptographic verification ensures only Anthropic-signed firmware runs. Uses ECDSA P-256 or RSA-2048. The public key is burned into OTP memory at manufacturing time and is immutable.',
+    steps: [
+      'ROM reads firmware image header (magic, version, size, sig)',
+      'SHA-256 hash computed over entire firmware binary in flash',
+      'ECDSA/RSA signature block extracted from header',
+      'Public key loaded from OTP / secure element (SE050)',
+      'Signature verified against computed hash',
+      'If FAIL: device halts, error code written to RTC backup register, red LED blinks SOS pattern',
+      'If PASS: anti-rollback version checked against fuse counter',
+      'Version accepted → proceed to decryption stage'
+    ],
+    chips: ['ECDSA P-256','SHA-256','OTP KEY','SE050','ANTI-ROLLBACK'],
+    chipColors: ['purple','blue','red','amber','green'],
+    subDiagram: 'sig_verify_detail'
+  },
+
+  'decrypt_jump': {
+    title: 'Decrypt & Jump to App',
+    tag: 'SECURITY', tagColor: '#a78bfa',
+    desc: 'Firmware is stored AES-128-CTR encrypted in flash. The decryption key is sealed inside the secure element and never exposed to the CPU bus. Decryption happens on-the-fly or into a secure SRAM region.',
+    steps: [
+      'Symmetric key retrieved from SE / hardware key manager',
+      'AES-128-CTR decrypt initiated for app flash region',
+      'Decrypted image verified with second-stage checksum (CRC32)',
+      'Memory protection unit (MPU) regions configured',
+      'Read-only regions locked before jump',
+      'Stack canary initialized for runtime stack protection',
+      'Interrupt vector table relocated to app start address',
+      'Branch to application reset handler'
+    ],
+    chips: ['AES-128-CTR','MPU','STACK CANARY','CRC32'],
+    chipColors: ['purple','blue','amber','green'],
+    subDiagram: null
+  },
+
+  'mcu_clock': {
+    title: 'MCU Clock & PLL Init',
+    tag: 'SYSTEM INIT', tagColor: '#10b981',
+    desc: 'Clock tree initialization is the foundation of all timing-dependent peripherals. A bad clock config causes silent failures in UART, SPI, and I2C. The PLL must stabilize before any peripheral init.',
+    steps: [
+      'HSI (16 MHz internal RC) selected as temporary clock source',
+      'External HSE crystal (8–16 MHz) started, wait for HSE_RDY flag',
+      'PLL configured: input HSE, multiplier → target SYSCLK (e.g. 80 MHz)',
+      'Wait for PLL lock (PLLRDY flag)',
+      'Flash latency wait-states set (e.g. 4WS for 80 MHz @ 3.3V)',
+      'AHB prescaler = 1 (HCLK = SYSCLK)',
+      'APB1 prescaler set (≤45 MHz max), APB2 prescaler set',
+      'SYSCLK source switched to PLL',
+      'SysTick configured for 1 ms RTOS tick',
+      'Watchdog timer (IWDG) started — 4s timeout'
+    ],
+    chips: ['HSE XTAL','PLL','SYSCLK','SYSTICK','IWDG'],
+    chipColors: ['green','blue','amber','purple','red'],
+    subDiagram: null
+  },
+
+  'parallel_init': {
+    title: 'Parallel Peripheral Init',
+    tag: 'DRIVER LAYER', tagColor: '#00d4ff',
+    desc: 'All peripheral drivers are initialized before RTOS starts. Each driver follows the same pattern: clock enable → GPIO config → peripheral config → interrupt enable → register with HAL. Click individual peripherals for detailed sequences.',
+    steps: [
+      'RCC clocks enabled for all required peripherals',
+      'GPIO alternate functions configured for each peripheral',
+      'DMA channels allocated (UART, SPI use DMA)',
+      'I2C, SPI, UART peripherals initialized in parallel concept',
+      'BLE stack pre-initialized (soft-device or NimBLE)',
+      'Flash/EEPROM SPI drivers registered',
+      'GPIO inputs (button) configured with pull-up and EXTI',
+      'ADC configured for VBAT measurement (battery level)',
+      'All drivers return HAL_OK or fault flag is set'
+    ],
+    chips: ['RCC','GPIO AF','DMA','HAL','EXTI','ADC'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'post': {
+    title: 'POST — Power-On Self Test',
+    tag: 'VALIDATION', tagColor: '#f59e0b',
+    desc: 'Self-test verifies all hardware is functional before the RTOS starts tasks. A failed POST is written to EEPROM so the failure can be reported over BLE or LoRa when partial operation resumes.',
+    steps: [
+      'IMU: send WHO_AM_I command over I2C, verify device ID byte',
+      'LR1120: SPI loopback test, read silicon revision register',
+      'GPS: check for UART activity (NMEA stream within 500ms timeout)',
+      'Flash: read/write test pattern to scratch sector, verify CRC',
+      'EEPROM: write test byte to address 0x0000, read back, erase',
+      'ADC: measure VBAT, check within valid range (3.0V–4.2V)',
+      'BLE: verify controller responds to HCI Reset command',
+      'Any failure: write fault code to RTC backup register, blink error pattern',
+      'Pass: proceed to RTOS kernel start'
+    ],
+    chips: ['WHO_AM_I','SPI TEST','UART CHECK','CRC','VBAT','HCI'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'rtos_start': {
+    title: 'RTOS Kernel Start',
+    tag: 'RTOS', tagColor: '#10b981',
+    desc: 'FreeRTOS (or Zephyr) scheduler kicks off. All tasks, queues, semaphores and event groups are created before vTaskStartScheduler() is called. After this call, the CPU never returns to main().',
+    steps: [
+      'Heap initialized (heap_4.c or pool allocator)',
+      'Create queues: imu_q (depth 8), gps_q (4), lora_tx_q (16), ble_q (8)',
+      'Create mutexes: shared_state_mutex, flash_mutex, i2c_bus_mutex',
+      'Create event groups: sys_events (SOS_FLAG, SHUTDOWN_FLAG, BLE_CONN_FLAG)',
+      'Create tasks: IMU(P5), ButtonFSM(P6), LoRaWAN(P4), GPS(P3), BLE(P3), Indicator(P1)',
+      'Create software timers: batt_check(60s), gps_duty(30s), lora_keepalive(10min)',
+      'vTaskStartScheduler() called — SysTick drives preemption',
+      'Idle hook configured for WFI sleep',
+      'Task priorities enforced; ButtonFSM highest for safety-critical response'
+    ],
+    chips: ['FREERTOS','HEAP_4','QUEUES','MUTEXES','EVENT GROUPS','TIMERS'],
+    chipColors: ['green','blue','amber','purple','red','blue'],
+    subDiagram: 'rtos_detail'
+  },
+
+  // ── PERIPHERAL SUB-NODES ────────────────────────────────
+  'i2c_init': {
+    title: 'I2C Init — IMU Driver',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: 'The IMU (e.g. ICM-42688 or LSM6DSO) communicates over I2C at 400 kHz Fast Mode. The interrupt line (INT1) is wired to a GPIO EXTI line for zero-latency data-ready detection.',
+    steps: [
+      'Enable I2C1 clock: RCC_APB1ENR |= I2C1EN',
+      'Configure SDA/SCL pins: GPIO AF4, open-drain, no pull (external 4.7kΩ)',
+      'Set I2C timing register: 400 kHz Fast Mode (PRESC=1, SCLL=0x9, SCLH=0x3)',
+      'Enable I2C1 peripheral: CR1 |= PE',
+      'Probe IMU address (0x68 or 0x69): send START + addr + R/W',
+      'Read WHO_AM_I register (0x0F), verify against expected ID',
+      'Write IMU config: ODR=104Hz, ±4g accel, ±500dps gyro, INT1 data-ready',
+      'Configure INT1 GPIO: input, no pull, EXTI rising edge, NVIC priority 5',
+      'Register I2C error callback for bus fault recovery (timeout, NACK)',
+      'IMU driver handle stored globally for task use'
+    ],
+    chips: ['I2C FAST MODE','400 kHz','EXTI INT','ICM-42688','WHO_AM_I','DMA RX'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: 'i2c_detail'
+  },
+
+  'spi_init': {
+    title: 'SPI Init — LR1120 Driver',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: 'The LR1120 (LoRa + LR-FHSS + GNSS front-end) uses SPI at up to 16 MHz. NSS is software-controlled. The chip has DIO1 (TX/RX done) and BUSY lines that must be polled/interrupted.',
+    steps: [
+      'Enable SPI2 clock: RCC_APB1ENR |= SPI2EN',
+      'Configure MOSI/MISO/SCK pins: GPIO AF5, push-pull, high speed',
+      'Configure NSS pin: GPIO output push-pull, init HIGH',
+      'SPI config: Master, CPOL=0 CPHA=0 (Mode 0), 16 MHz BR, 8-bit, MSB first',
+      'Enable SPI2: CR1 |= SPE',
+      'Configure BUSY pin: GPIO input, no pull — poll before each transaction',
+      'Configure DIO1 pin: EXTI falling edge, NVIC priority 4',
+      'LR1120 soft reset: assert NRESET low 100μs, release, wait BUSY low',
+      'Read LR1120 bootloader version via GetVersion() SPI command',
+      'Load LoRaWAN regional parameters (IN865 / AS923 for India)',
+      'Configure LR-FHSS parameters for hopping spread'
+    ],
+    chips: ['SPI MODE0','16 MHz','DIO1 EXTI','LR1120','IN865','LR-FHSS'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: 'spi_detail'
+  },
+
+  'uart_init': {
+    title: 'UART Init — Quectel L89 GPS',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: 'The Quectel L89 supports GPS + NavIC (IRNSS). It outputs NMEA 0183 sentences at 9600 baud by default (configurable to 115200). DMA circular buffer prevents missed characters at high rates.',
+    steps: [
+      'Enable USART2 clock: RCC_APB1ENR |= USART2EN',
+      'Configure TX/RX pins: GPIO AF7, push-pull (TX), input (RX)',
+      'UART config: 9600 baud (upgrade to 115200 after init), 8N1, no HW flow',
+      'Enable DMA1 channel for USART2_RX: circular mode, 512-byte ring buffer',
+      'Enable IDLE line interrupt (UART_CR1 IDLEIE) for sentence-complete detection',
+      'Send PMTK command to enable NavIC constellation: $PMTK353,1,0,0,0,1*2A',
+      'Send PMTK to set 1Hz update rate (or 10Hz for SOS mode)',
+      'Send PMTK to enable GGA + RMC + GSA sentences only (reduce parse load)',
+      'First NMEA sentence received → GPS task woken from blocked state',
+      'UART error callback handles framing errors (noise on long cable runs)'
+    ],
+    chips: ['USART2','DMA CIRC','NMEA 0183','NAVIC','PMTK CMD','IDLE IRQ'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'ble_init': {
+    title: 'BLE Init — GATT Server',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: 'BLE stack (NimBLE or Nordic SoftDevice) provides a GATT server with custom service UUIDs. The endnode acts as peripheral; the smartphone app is central. Bonding with key storage in EEPROM enables auto-reconnect.',
+    steps: [
+      'HCI transport initialized (UART or embedded controller)',
+      'BLE stack init: nimble_port_init() or sd_softdevice_enable()',
+      'GAP config: device name "ENDNODE-XXXX" (last 4 of DevEUI), connectable undirected adv',
+      'GATT server: register custom service UUID 0xFAB1',
+      'Characteristics: STATUS_NOTIFY (notify), COMMAND_WRITE (write), ALERT_NOTIFY (notify)',
+      'Advertising interval: 100ms (fast) → 1s (slow after 30s no connect)',
+      'Security: BLE pairing mode 1 level 3 (MITM, bonding)',
+      'Bond keys stored to EEPROM after first pairing',
+      'Connection callback: update indicator task, set BLE_CONN_FLAG in event group',
+      'Disconnect callback: restart advertising, clear flag, flush pending notifies to EEPROM'
+    ],
+    chips: ['NIMBLE','GATT SERVER','ADV','BONDING','EEPROM KEYS','NOTIFY'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'flash_init': {
+    title: 'Flash / EEPROM Init',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: '32 MB NOR flash (W25Q256) for firmware OTA and data logs. 2 MB EEPROM (AT24CM02) for config, bond keys, and offline message queue. Both on SPI with separate CS lines.',
+    steps: [
+      'SPI3 initialized for storage devices (shared bus, separate CS)',
+      'Flash CS pin init HIGH, EEPROM CS pin init HIGH',
+      'Flash: read JEDEC ID (0x9F), verify manufacturer = EF (Winbond)',
+      'Flash: read status register, check WEL and BUSY bits cleared',
+      'Flash partition table read from sector 0: OTA slot A/B, log region, scratch',
+      'EEPROM: probe I2C address 0x50 (1 Mbit) + 0x51 (1 Mbit)',
+      'EEPROM: read magic byte at 0x0000, verify config validity',
+      'If EEPROM invalid: write factory defaults (DevEUI, join keys, region)',
+      'EEPROM message queue head/tail pointers loaded into RAM',
+      'Flash/EEPROM mutex created for multi-task safe access'
+    ],
+    chips: ['W25Q256','AT24CM02','JEDEC ID','OTA A/B','PARTITION','EEPROM Q'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'gpio_init': {
+    title: 'GPIO / LED / ADC Init',
+    tag: 'PERIPHERAL DRIVER', tagColor: '#60a5fa',
+    desc: 'RGB LED driven by PWM timers (3 channels). Button on interrupt-capable pin. VBAT ADC through resistor divider. Power-enable lines for GPS and LR1120.',
+    steps: [
+      'LED_R → TIM2_CH1 (PA0), LED_G → TIM2_CH2 (PA1), LED_B → TIM2_CH3 (PA2)',
+      'TIM2 PWM: ARR=255, PSC for ~1kHz frequency, 8-bit duty cycle',
+      'All LED channels: duty=0 (off) at init',
+      'Button pin: GPIO input, internal pull-up, EXTI11 both edges',
+      'Button EXTI NVIC priority 6 (highest — safety critical)',
+      'VBAT_ADC pin: analog input, no pull, connected to (VBAT × 0.5) via 100k/100k',
+      'ADC1 config: 12-bit, single conversion, VREFINT calibration applied',
+      'GPS_PWR_EN pin: output, init LOW (GPS off until RTOS starts)',
+      'LR1120_NRESET pin: output, init HIGH',
+      'CHRG_STAT pin: input with pull-up, reads battery charger IC status'
+    ],
+    chips: ['TIM2 PWM','RGB LED','EXTI','ADC 12-bit','VBAT','CHRG IC'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  // ── RTOS TASKS ──────────────────────────────────────────
+  'task_imu': {
+    title: 'Task: IMU Reader',
+    tag: 'RTOS TASK | PRIORITY 5', tagColor: '#10b981',
+    desc: 'Highest-priority data task. Wakens on IMU data-ready interrupt, reads 6-axis data (accel + gyro) via I2C, timestamps with SysTick, appends to circular buffer. Activity detection logic runs here.',
+    steps: [
+      'Task blocks on imu_semaphore (given by INT1 ISR)',
+      'Acquire i2c_bus_mutex (timeout 10ms)',
+      'Burst read 12 bytes from IMU FIFO (accel XYZ + gyro XYZ)',
+      'Apply factory calibration offsets and scale factors',
+      'Timestamp frame with xTaskGetTickCount()',
+      'Write frame to imu_ringbuf (64 × 12-byte frames, circular)',
+      'Release i2c_bus_mutex',
+      'Activity detection: |accel| > threshold → wake GPS, increment motion counter',
+      'Free fall detection: |accel| < 0.2g for > 100ms → set ALERT flag',
+      'Post IMU status to indicator queue (for LED update)',
+      'Loop back to block on semaphore'
+    ],
+    chips: ['SEMAPHORE','I2C BURST','RINGBUF','CALIB','ACTIVITY DET','FREEFALL'],
+    chipColors: ['blue','green','amber','purple','red','blue'],
+    subDiagram: null
+  },
+
+  'task_lora': {
+    title: 'Task: LoRaWAN / LR-FHSS',
+    tag: 'RTOS TASK | PRIORITY 4', tagColor: '#10b981',
+    desc: 'Manages the complete LoRaWAN Class A state machine: join (OTAA), uplink scheduling, RX1/RX2 window handling, downlink processing, and LR-FHSS channel hopping.',
+    steps: [
+      'On start: check if already joined (keys in EEPROM)',
+      'If not joined: OTAA join request — DevEUI + AppEUI + JoinNonce',
+      'Join accept → derive NwkSKey + AppSKey, store to EEPROM',
+      'Task enters TX loop: wait on lora_tx_queue',
+      'Dequeue payload → encrypt with AppSKey (AES-128 CBC)',
+      'Add MIC (message integrity code) with NwkSKey',
+      'Select LR-FHSS or LoRa mode based on payload type',
+      'Trigger LR1120 TX via SPI, wait DIO1 TX_DONE event',
+      'Open RX1 window (1s after TX), then RX2 (2s after TX)',
+      'If downlink received: post to ble_alert_queue',
+      'Update frame counter in EEPROM every TX'
+    ],
+    chips: ['OTAA JOIN','APPSKEY','NWKSKEY','AES-128','MIC','RX1/RX2','LR-FHSS'],
+    chipColors: ['purple','blue','green','amber','red','blue','green'],
+    subDiagram: 'lora_detail'
+  },
+
+  'task_button': {
+    title: 'Task: Button FSM',
+    tag: 'RTOS TASK | PRIORITY 6', tagColor: '#10b981',
+    desc: 'Safety-critical task at highest priority. Implements a debounced finite state machine for 6s power toggle and rapid double-tap SOS. Uses hardware timer for precise timing.',
+    steps: [
+      'Block on button_event_queue (fed by EXTI ISR)',
+      'IDLE → PRESS_DETECTED: leading edge event received',
+      'Start hardware timer (TIM6) for duration measurement',
+      'PRESS_DETECTED: monitor for release or timeout',
+      '≥ 6000ms hold: LONG_PRESS_EVENT → set POWER_TOGGLE in event group',
+      'Release < 6s: SHORT_PRESS_1 state, start 500ms window timer',
+      'Within 500ms: second press → DOUBLE_TAP_EVENT → SOS activation',
+      '500ms expires without 2nd press: single tap → ignored or configurable action',
+      'SOS activation: set SOS_FLAG in sys_events, trigger RGB red alert pattern',
+      'Debounce: ignore edges within 20ms of first edge (hardware capacitor + software)'
+    ],
+    chips: ['FSM','TIM6','DEBOUNCE 20ms','SOS FLAG','LONG PRESS','DOUBLE TAP'],
+    chipColors: ['purple','blue','green','red','amber','red'],
+    subDiagram: null
+  },
+
+  'task_sos': {
+    title: 'SOS Alert Path',
+    tag: 'CRITICAL FLOW', tagColor: '#ef4444',
+    desc: 'When SOS_FLAG is set, the LoRaWAN task immediately preempts normal telemetry. A priority-encoded alert payload is built with all available sensor data and transmitted with maximum retries.',
+    steps: [
+      'SOS_FLAG detected in event group (checked at top of LoRa task loop)',
+      'Set lora_tx_queue to high-priority mode (flush normal queue first)',
+      'Snapshot: GPS fix (lat/lon/alt/accuracy), IMU last frame, VBAT level, timestamp',
+      'Build SOS payload: DevID(4B) + Type(1B=0xFF) + GPS(16B) + IMU(6B) + VBAT(1B)',
+      'Encrypt payload with AppSKey, compute MIC',
+      'Transmit at SF12 BW125 (max range) on confirmed uplink (ACK required)',
+      'ACK not received in RX1/RX2: retry immediately × 3 with backoff',
+      'All 3 retries fail: store to EEPROM, set LORA_FAIL LED pattern',
+      'Simultaneously: BLE GATT notify on ALERT_NOTIFY characteristic',
+      'Continue retrying from EEPROM every 30s until ACK received'
+    ],
+    chips: ['PRIORITY TX','SF12 BW125','CONFIRMED UP','ACK RETRY ×3','EEPROM QUEUE','BLE NOTIFY'],
+    chipColors: ['red','purple','blue','amber','green','blue'],
+    subDiagram: null
+  },
+
+  'shutdown': {
+    title: 'Shutdown Sequence',
+    tag: 'POWER MANAGEMENT', tagColor: '#f59e0b',
+    desc: 'Graceful shutdown ensures no data loss and notifies the gateway. All in-flight transactions complete before power is removed. State is preserved for the next boot.',
+    steps: [
+      'SHUTDOWN_FLAG set in sys_events event group',
+      'All tasks check flag at next safe point and acknowledge',
+      'LoRa task: complete any in-flight TX, flush TX queue to EEPROM',
+      'GPS task: save last known fix to EEPROM (warm start next boot)',
+      'BLE task: send disconnect indication to phone, stop advertising',
+      'IMU task: write final frame to log, stop I2C transactions',
+      'Send LoRa "device offline" beacon (best-effort, no retry)',
+      'Write shutdown reason + timestamp to EEPROM[0x0010]',
+      'RTOS: suspend all tasks, delete queues',
+      'GPIO: assert GPS_PWR_EN low, LR1120 sleep command via SPI',
+      'Enter MCU STANDBY mode (VBAT pin keeps RTC alive)'
+    ],
+    chips: ['EVENT FLAG','QUEUE FLUSH','WARM START','OFFLINE BEACON','STANDBY MODE','RTC'],
+    chipColors: ['red','amber','green','blue','purple','green'],
+    subDiagram: null
+  }
+};
+
+// ── Sub-diagrams (inline SVG strings) ────────────────────
+const SUB_DIAGRAMS = {
+
+  power_on_detail: `<svg viewBox="0 0 560 320" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <rect x="180" y="10" width="200" height="36" rx="6" fill="#0f2a1a" stroke="#10b981" stroke-width="0.8"/>
+    <text x="280" y="28" text-anchor="middle" font-size="10" fill="#10b981" font-weight="600">VDD stable — nRESET released</text>
+    <line x1="280" y1="46" x2="280" y2="68" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a2)"/>
+    <rect x="180" y="68" width="200" height="36" rx="6" fill="#0a1a2e" stroke="#00d4ff" stroke-width="0.8"/>
+    <text x="280" y="86" text-anchor="middle" font-size="10" fill="#60a5fa">ROM Bootloader starts</text>
+    <text x="280" y="98" text-anchor="middle" font-size="9" fill="#475569">Read BOOT0/BOOT1 pins</text>
+    <line x1="280" y1="104" x2="280" y2="126" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a2)"/>
+    <rect x="180" y="126" width="200" height="36" rx="6" fill="#1a0f2e" stroke="#7c3aed" stroke-width="0.8"/>
+    <text x="280" y="144" text-anchor="middle" font-size="10" fill="#a78bfa">Load vector table from 0x08000000</text>
+    <line x1="280" y1="162" x2="280" y2="184" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a2)"/>
+    <rect x="180" y="184" width="200" height="36" rx="6" fill="#1a1200" stroke="#f59e0b" stroke-width="0.8"/>
+    <text x="280" y="202" text-anchor="middle" font-size="10" fill="#fbbf24">Startup: zero BSS, copy DATA</text>
+    <line x1="280" y1="220" x2="280" y2="242" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a2)"/>
+    <rect x="180" y="242" width="200" height="36" rx="6" fill="#0a1a2e" stroke="#00d4ff" stroke-width="0.8"/>
+    <text x="280" y="260" text-anchor="middle" font-size="10" fill="#60a5fa">SystemInit() → PLL → main()</text>
+    <line x1="280" y1="278" x2="280" y2="300" stroke="#10b981" stroke-width="1.2" marker-end="url(#a2)" stroke-dasharray="4 3"/>
+    <text x="360" y="295" font-size="9" fill="#10b981">→ Secure Boot</text>
+  </svg>`,
+
+  sig_verify_detail: `<svg viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <rect x="140" y="10" width="280" height="36" rx="6" fill="#1a0f2e" stroke="#7c3aed" stroke-width="0.8"/>
+    <text x="280" y="28" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="600">Compute SHA-256 over firmware image</text>
+    <line x1="280" y1="46" x2="280" y2="68" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a3)"/>
+    <rect x="140" y="68" width="280" height="36" rx="6" fill="#1a0f2e" stroke="#7c3aed" stroke-width="0.8"/>
+    <text x="280" y="86" text-anchor="middle" font-size="10" fill="#a78bfa">Load pub key from OTP fuses</text>
+    <line x1="280" y1="104" x2="280" y2="126" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a3)"/>
+    <polygon points="280,126 370,150 280,174 190,150" fill="none" stroke="#00d4ff" stroke-width="0.8"/>
+    <text x="280" y="148" text-anchor="middle" font-size="10" fill="#94a3b8">ECDSA valid?</text>
+    <line x1="190" y1="150" x2="80" y2="150" stroke="#ef4444" stroke-width="0.8" marker-end="url(#a3)"/>
+    <text x="135" y="144" text-anchor="middle" font-size="9" fill="#ef4444">No</text>
+    <rect x="10" y="132" width="70" height="36" rx="6" fill="#2a0a0a" stroke="#ef4444" stroke-width="0.8"/>
+    <text x="45" y="150" text-anchor="middle" font-size="9" fill="#f87171">HALT</text>
+    <line x1="280" y1="174" x2="280" y2="196" stroke="#10b981" stroke-width="0.8" marker-end="url(#a3)"/>
+    <text x="315" y="190" font-size="9" fill="#10b981">Yes</text>
+    <rect x="140" y="196" width="280" height="36" rx="6" fill="#0a1a2e" stroke="#00d4ff" stroke-width="0.8"/>
+    <text x="280" y="210" text-anchor="middle" font-size="10" fill="#60a5fa">Check anti-rollback version</text>
+    <text x="280" y="224" text-anchor="middle" font-size="9" fill="#475569">fuse_version ≤ firmware_version</text>
+    <line x1="280" y1="232" x2="280" y2="254" stroke="#10b981" stroke-width="0.8" marker-end="url(#a3)"/>
+    <rect x="140" y="254" width="280" height="20" rx="4" fill="#0a2010" stroke="#10b981" stroke-width="0.8"/>
+    <text x="280" y="267" text-anchor="middle" font-size="9" fill="#10b981">→ Decrypt &amp; jump to app</text>
+  </svg>`,
+
+  i2c_detail: `<svg viewBox="0 0 560 340" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <text x="280" y="16" text-anchor="middle" font-size="10" fill="#475569">I2C transaction sequence — IMU data read</text>
+    <!-- MCU / IMU headers -->
+    <text x="120" y="38" text-anchor="middle" font-size="10" fill="#60a5fa" font-weight="600">MCU</text>
+    <text x="440" y="38" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="600">IMU (0x68)</text>
+    <line x1="120" y1="44" x2="120" y2="320" stroke="#1e3a5f" stroke-width="1"/>
+    <line x1="440" y1="44" x2="440" y2="320" stroke="#3b1f6e" stroke-width="1"/>
+    <!-- INT1 fires -->
+    <rect x="360" y="52" width="120" height="22" rx="4" fill="#1a0f2e" stroke="#7c3aed" stroke-width="0.6"/>
+    <text x="420" y="65" text-anchor="middle" font-size="9" fill="#a78bfa">INT1 pin HIGH (data ready)</text>
+    <line x1="360" y1="63" x2="155" y2="63" stroke="#7c3aed" stroke-width="0.8" marker-end="url(#a4)"/>
+    <!-- START -->
+    <text x="280" y="96" text-anchor="middle" font-size="9" fill="#94a3b8">START condition (SDA low while SCL high)</text>
+    <line x1="120" y1="100" x2="440" y2="100" stroke="#00d4ff" stroke-width="0.6" stroke-dasharray="3 2" marker-end="url(#a4)"/>
+    <!-- ADDR+W -->
+    <text x="280" y="122" text-anchor="middle" font-size="9" fill="#94a3b8">0x68 + W (set register pointer = 0x3B)</text>
+    <line x1="120" y1="126" x2="440" y2="126" stroke="#00d4ff" stroke-width="0.6" marker-end="url(#a4)"/>
+    <!-- ACK -->
+    <text x="280" y="148" text-anchor="middle" font-size="9" fill="#10b981">ACK</text>
+    <line x1="440" y1="152" x2="120" y2="152" stroke="#10b981" stroke-width="0.6" marker-end="url(#a4)"/>
+    <!-- REP START -->
+    <text x="280" y="174" text-anchor="middle" font-size="9" fill="#94a3b8">REPEATED START + 0x68 + R</text>
+    <line x1="120" y1="178" x2="440" y2="178" stroke="#00d4ff" stroke-width="0.6" stroke-dasharray="3 2" marker-end="url(#a4)"/>
+    <!-- Read 12 bytes -->
+    <text x="280" y="200" text-anchor="middle" font-size="9" fill="#a78bfa">12 bytes: AccXH AccXL AccYH AccYL AccZH AccZL GyroXH... (DMA)</text>
+    <line x1="440" y1="204" x2="120" y2="204" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#a4)"/>
+    <!-- NACK + STOP -->
+    <text x="280" y="226" text-anchor="middle" font-size="9" fill="#f87171">NACK (end of burst)</text>
+    <line x1="120" y1="230" x2="440" y2="230" stroke="#f87171" stroke-width="0.6" marker-end="url(#a4)"/>
+    <text x="280" y="252" text-anchor="middle" font-size="9" fill="#94a3b8">STOP condition</text>
+    <line x1="120" y1="256" x2="440" y2="256" stroke="#00d4ff" stroke-width="0.6" marker-end="url(#a4)"/>
+    <!-- Process -->
+    <rect x="50" y="270" width="155" height="36" rx="6" fill="#0a1a2e" stroke="#00d4ff" stroke-width="0.6"/>
+    <text x="127" y="286" text-anchor="middle" font-size="9" fill="#60a5fa">Scale + timestamp</text>
+    <text x="127" y="299" text-anchor="middle" font-size="9" fill="#475569">Write to ringbuf</text>
+  </svg>`,
+
+  spi_detail: `<svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <text x="280" y="16" text-anchor="middle" font-size="10" fill="#475569">SPI command sequence — LR1120 TX trigger</text>
+    <text x="120" y="38" text-anchor="middle" font-size="10" fill="#60a5fa" font-weight="600">MCU</text>
+    <text x="440" y="38" text-anchor="middle" font-size="10" fill="#10b981" font-weight="600">LR1120</text>
+    <line x1="120" y1="44" x2="120" y2="285" stroke="#1e3a5f" stroke-width="1"/>
+    <line x1="440" y1="44" x2="440" y2="285" stroke="#064e3b" stroke-width="1"/>
+    <!-- BUSY check -->
+    <text x="280" y="64" text-anchor="middle" font-size="9" fill="#94a3b8">Poll BUSY pin — wait LOW (chip ready)</text>
+    <line x1="120" y1="68" x2="440" y2="68" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#a5)"/>
+    <line x1="440" y1="72" x2="120" y2="72" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#a5)"/>
+    <text x="480" y="72" font-size="9" fill="#fbbf24">BUSY=0</text>
+    <!-- NSS low -->
+    <text x="280" y="96" text-anchor="middle" font-size="9" fill="#94a3b8">Assert NSS LOW</text>
+    <!-- Write buffer cmd -->
+    <text x="280" y="118" text-anchor="middle" font-size="9" fill="#a78bfa">WriteBuffer(0x0E, payload_ptr, length)</text>
+    <line x1="120" y1="122" x2="440" y2="122" stroke="#7c3aed" stroke-width="1" marker-end="url(#a5)"/>
+    <!-- SetTxParams -->
+    <text x="280" y="144" text-anchor="middle" font-size="9" fill="#a78bfa">SetTxParams(power=22dBm, ramptime=40μs)</text>
+    <line x1="120" y1="148" x2="440" y2="148" stroke="#7c3aed" stroke-width="1" marker-end="url(#a5)"/>
+    <!-- SetTx -->
+    <text x="280" y="170" text-anchor="middle" font-size="9" fill="#a78bfa">SetTx(timeout=0) — start transmit</text>
+    <line x1="120" y1="174" x2="440" y2="174" stroke="#7c3aed" stroke-width="1" marker-end="url(#a5)"/>
+    <!-- NSS high -->
+    <text x="280" y="196" text-anchor="middle" font-size="9" fill="#94a3b8">Deassert NSS HIGH — SPI transaction end</text>
+    <!-- DIO1 interrupt -->
+    <text x="280" y="220" text-anchor="middle" font-size="9" fill="#10b981">TX_DONE → DIO1 fires (IRQ)</text>
+    <line x1="440" y1="224" x2="120" y2="224" stroke="#10b981" stroke-width="1" marker-end="url(#a5)"/>
+    <!-- Clear IRQ -->
+    <text x="280" y="248" text-anchor="middle" font-size="9" fill="#60a5fa">ClearIrqStatus(TX_DONE) via SPI</text>
+    <line x1="120" y1="252" x2="440" y2="252" stroke="#00d4ff" stroke-width="0.8" marker-end="url(#a5)"/>
+    <!-- Open RX -->
+    <rect x="50" y="270" width="180" height="20" rx="4" fill="#0a2010" stroke="#10b981" stroke-width="0.6"/>
+    <text x="140" y="283" text-anchor="middle" font-size="9" fill="#10b981">Open RX1 window (1s delay)</text>
+  </svg>`,
+
+  rtos_detail: `<svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <text x="280" y="16" text-anchor="middle" font-size="10" fill="#475569">RTOS task priority vs stack allocation</text>
+    <!-- Table header -->
+    <rect x="10" y="24" width="540" height="22" rx="4" fill="#141820"/>
+    <text x="90" y="38" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">TASK</text>
+    <text x="210" y="38" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">PRIORITY</text>
+    <text x="320" y="38" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">STACK</text>
+    <text x="430" y="38" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">WAKE SOURCE</text>
+    <!-- Rows -->
+    <rect x="10" y="46" width="540" height="22" rx="0" fill="rgba(124,58,237,0.08)"/>
+    <text x="90" y="60" text-anchor="middle" font-size="9" fill="#a78bfa">ButtonFSM</text>
+    <text x="210" y="60" text-anchor="middle" font-size="9" fill="#a78bfa">6 (highest)</text>
+    <text x="320" y="60" text-anchor="middle" font-size="9" fill="#94a3b8">512B</text>
+    <text x="430" y="60" text-anchor="middle" font-size="9" fill="#94a3b8">EXTI queue</text>
+    <rect x="10" y="68" width="540" height="22" rx="0" fill="rgba(0,212,255,0.04)"/>
+    <text x="90" y="82" text-anchor="middle" font-size="9" fill="#60a5fa">IMU Reader</text>
+    <text x="210" y="82" text-anchor="middle" font-size="9" fill="#60a5fa">5</text>
+    <text x="320" y="82" text-anchor="middle" font-size="9" fill="#94a3b8">1024B</text>
+    <text x="430" y="82" text-anchor="middle" font-size="9" fill="#94a3b8">Semaphore (INT1)</text>
+    <rect x="10" y="90" width="540" height="22" rx="0" fill="rgba(16,185,129,0.05)"/>
+    <text x="90" y="104" text-anchor="middle" font-size="9" fill="#34d399">LoRaWAN</text>
+    <text x="210" y="104" text-anchor="middle" font-size="9" fill="#34d399">4</text>
+    <text x="320" y="104" text-anchor="middle" font-size="9" fill="#94a3b8">2048B</text>
+    <text x="430" y="104" text-anchor="middle" font-size="9" fill="#94a3b8">TX queue / DIO1</text>
+    <rect x="10" y="112" width="540" height="22" rx="0" fill="rgba(0,212,255,0.04)"/>
+    <text x="90" y="126" text-anchor="middle" font-size="9" fill="#60a5fa">GPS/NavIC</text>
+    <text x="210" y="126" text-anchor="middle" font-size="9" fill="#60a5fa">3</text>
+    <text x="320" y="126" text-anchor="middle" font-size="9" fill="#94a3b8">1024B</text>
+    <text x="430" y="126" text-anchor="middle" font-size="9" fill="#94a3b8">UART IDLE IRQ</text>
+    <rect x="10" y="134" width="540" height="22" rx="0" fill="rgba(0,212,255,0.04)"/>
+    <text x="90" y="148" text-anchor="middle" font-size="9" fill="#60a5fa">BLE Server</text>
+    <text x="210" y="148" text-anchor="middle" font-size="9" fill="#60a5fa">3</text>
+    <text x="320" y="148" text-anchor="middle" font-size="9" fill="#94a3b8">2048B</text>
+    <text x="430" y="148" text-anchor="middle" font-size="9" fill="#94a3b8">BLE event queue</text>
+    <rect x="10" y="156" width="540" height="22" rx="0" fill="rgba(245,158,11,0.05)"/>
+    <text x="90" y="170" text-anchor="middle" font-size="9" fill="#fbbf24">Indicator</text>
+    <text x="210" y="170" text-anchor="middle" font-size="9" fill="#fbbf24">1 (lowest)</text>
+    <text x="320" y="170" text-anchor="middle" font-size="9" fill="#94a3b8">512B</text>
+    <text x="430" y="170" text-anchor="middle" font-size="9" fill="#94a3b8">Timer (500ms)</text>
+    <!-- Total heap -->
+    <rect x="10" y="192" width="540" height="22" rx="4" fill="#141820" stroke="#1e2836" stroke-width="0.6"/>
+    <text x="280" y="206" text-anchor="middle" font-size="9" fill="#475569">Total stack: ~7.25 KB | Heap (heap_4): 32 KB recommended</text>
+  </svg>`,
+
+  lora_detail: `<svg viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg" style="font-family:'JetBrains Mono',monospace">
+    <defs><marker id="a7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5"/></marker></defs>
+    <text x="280" y="16" text-anchor="middle" font-size="10" fill="#475569">LoRaWAN Class A uplink/downlink timing</text>
+    <line x1="40" y1="44" x2="40" y2="260" stroke="#1e3a5f" stroke-width="1"/>
+    <line x1="280" y1="44" x2="280" y2="260" stroke="#064e3b" stroke-width="1"/>
+    <line x1="520" y1="44" x2="520" y2="260" stroke="#1e3a5f" stroke-width="1"/>
+    <text x="40" y="40" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600">EndNode</text>
+    <text x="280" y="40" text-anchor="middle" font-size="9" fill="#34d399" font-weight="600">Gateway</text>
+    <text x="520" y="40" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600">Network Server</text>
+    <!-- Uplink -->
+    <text x="160" y="68" text-anchor="middle" font-size="9" fill="#a78bfa">Uplink (confirmed)</text>
+    <line x1="40" y1="72" x2="280" y2="72" stroke="#7c3aed" stroke-width="1.2" marker-end="url(#a7)"/>
+    <!-- GW to NS -->
+    <text x="400" y="90" text-anchor="middle" font-size="9" fill="#34d399">Forward + metadata</text>
+    <line x1="280" y1="94" x2="520" y2="94" stroke="#10b981" stroke-width="0.8" marker-end="url(#a7)"/>
+    <!-- RX1 window 1s -->
+    <rect x="10" y="108" width="60" height="16" rx="3" fill="#0a1a2e" stroke="#00d4ff" stroke-width="0.6"/>
+    <text x="40" y="119" text-anchor="middle" font-size="8" fill="#60a5fa">RX1 open</text>
+    <text x="160" y="108" text-anchor="middle" font-size="8" fill="#475569">t+1s</text>
+    <line x1="40" y1="124" x2="40" y2="134" stroke="#00d4ff" stroke-width="0.6"/>
+    <!-- Downlink (ACK) on RX1 -->
+    <text x="160" y="150" text-anchor="middle" font-size="9" fill="#10b981">ACK downlink</text>
+    <line x1="280" y1="154" x2="40" y2="154" stroke="#10b981" stroke-width="1" marker-end="url(#a7)"/>
+    <!-- RX2 -->
+    <rect x="10" y="170" width="60" height="16" rx="3" fill="#141820" stroke="#475569" stroke-width="0.6"/>
+    <text x="40" y="181" text-anchor="middle" font-size="8" fill="#475569">RX2 open</text>
+    <text x="160" y="170" text-anchor="middle" font-size="8" fill="#475569">t+2s (if no RX1)</text>
+    <!-- LR-FHSS note -->
+    <rect x="10" y="210" width="530" height="38" rx="6" fill="#0a1a2e" stroke="#7c3aed" stroke-width="0.6"/>
+    <text x="275" y="226" text-anchor="middle" font-size="9" fill="#a78bfa" font-weight="600">LR-FHSS mode (long-range frequency hopping)</text>
+    <text x="275" y="241" text-anchor="middle" font-size="8" fill="#475569">Header BW=335kHz, payload hops across 8 physical channels — more robust in dense RF</text>
+  </svg>`
+};
+
+// ═══════════════════════════════════════════════════════════
+// DIAGRAM DEFINITIONS — root and sub-level layouts
+// ═══════════════════════════════════════════════════════════
+
+// Node: {id, x, y, w, h, label, sublabel, color, strokeColor, textColor, children, clickable}
+const ROOT_DIAGRAM = {
+  viewBox: '0 0 760 920',
+  nodes: [
+    // Entry
+    { id:'power_on', x:280, y:30, w:200, h:48, label:'Power-on / reset', sub:'ROM bootloader', color:'#0f2a1a', stroke:'#10b981', text:'#10b981' },
+    // Security chain
+    { id:'sig_verify', x:280, y:120, w:200, h:48, label:'Verify firmware signature', sub:'ECDSA + SHA-256', color:'#1a0f2e', stroke:'#7c3aed', text:'#a78bfa' },
+    { id:'sig_fail', x:60, y:168, w:120, h:36, label:'Halt & lock', sub:'LED error pattern', color:'#2a0a0a', stroke:'#ef4444', text:'#f87171', clickable:false },
+    { id:'decrypt_jump', x:280, y:210, w:200, h:48, label:'Decrypt & jump to app', sub:'AES-128 flash region', color:'#1a0f2e', stroke:'#7c3aed', text:'#a78bfa' },
+    // Clock
+    { id:'mcu_clock', x:280, y:300, w:200, h:48, label:'MCU clock & PLL init', sub:'SysTick · WDT config', color:'#0a1a2e', stroke:'#00d4ff', text:'#60a5fa' },
+    // Parallel init container (visual only)
+    { id:'parallel_init', x:280, y:396, w:200, h:48, label:'Parallel peripheral init', sub:'All drivers in sequence', color:'#0a1a2e', stroke:'#00d4ff', text:'#60a5fa' },
+    // Parallel driver nodes
+    { id:'i2c_init', x:50, y:490, w:150, h:52, label:'I2C init', sub:'IMU · INT line', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'spi_init', x:220, y:490, w:150, h:52, label:'SPI init', sub:'LR1120 · LR-FHSS', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'uart_init', x:390, y:490, w:150, h:52, label:'UART init', sub:'Quectel L89 GPS', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'ble_init', x:50, y:558, w:150, h:52, label:'BLE init', sub:'GATT server · adv', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'flash_init', x:220, y:558, w:150, h:52, label:'Flash / EEPROM', sub:'32MB + 2MB drivers', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'gpio_init', x:390, y:558, w:150, h:52, label:'GPIO · LED · ADC', sub:'RGB · button · VBAT', color:'#0a1220', stroke:'#3b82f6', text:'#60a5fa' },
+    // POST
+    { id:'post', x:280, y:640, w:200, h:48, label:'POST — self test', sub:'Sensor comms · flash CRC', color:'#1a1200', stroke:'#f59e0b', text:'#fbbf24' },
+    // RTOS
+    { id:'rtos_start', x:280, y:730, w:200, h:48, label:'RTOS kernel start', sub:'Tasks · queues · semaphores', color:'#0a2010', stroke:'#10b981', text:'#34d399' },
+    // App
+    { id:'app_tasks', x:160, y:820, w:440, h:60, label:'Application tasks live', sub:'ButtonFSM · IMU · LoRaWAN · GPS · BLE · Indicator', color:'#0d1f10', stroke:'#10b981', text:'#34d399' },
+    // Task sub-refs inside app
+    { id:'task_button', x:170, y:830, w:95, h:38, label:'Button FSM', sub:'P6', color:'#1a0830', stroke:'#7c3aed', text:'#a78bfa' },
+    { id:'task_imu', x:275, y:830, w:95, h:38, label:'IMU reader', sub:'P5', color:'#0a1a2e', stroke:'#3b82f6', text:'#60a5fa' },
+    { id:'task_lora', x:380, y:830, w:95, h:38, label:'LoRaWAN', sub:'P4', color:'#0a2010', stroke:'#10b981', text:'#34d399' },
+    { id:'task_sos', x:485, y:830, w:95, h:38, label:'SOS path', sub:'CRITICAL', color:'#2a0a0a', stroke:'#ef4444', text:'#f87171' },
+    { id:'shutdown', x:275, y:878, w:200, h:38, label:'Shutdown sequence', sub:'Graceful power off', color:'#1a1200', stroke:'#f59e0b', text:'#fbbf24' },
+  ],
+  arrows: [
+    {x1:380, y1:78, x2:380, y2:120, color:'#00d4ff'},
+    {x1:380, y1:168, x2:380, y2:210, color:'#00d4ff'},
+    {x1:280, y1:186, x2:180, y2:186, color:'#ef4444', dashed:true},
+    {x1:380, y1:258, x2:380, y2:300, color:'#00d4ff'},
+    {x1:380, y1:348, x2:380, y2:396, color:'#00d4ff'},
+    {x1:380, y1:444, x2:125, y2:490, color:'#3b82f6', curve:true},
+    {x1:380, y1:444, x2:295, y2:490, color:'#3b82f6'},
+    {x1:380, y1:444, x2:465, y2:490, color:'#3b82f6', curve:true},
+    {x1:380, y1:444, x2:125, y2:558, color:'#1e3a5f'},
+    {x1:380, y1:444, x2:295, y2:558, color:'#1e3a5f'},
+    {x1:380, y1:444, x2:465, y2:558, color:'#1e3a5f', curve:true},
+    {x1:125, y1:610, x2:380, y2:640, color:'#1e3a5f', curve:true},
+    {x1:295, y1:610, x2:380, y2:640, color:'#1e3a5f'},
+    {x1:465, y1:610, x2:380, y2:640, color:'#1e3a5f', curve:true},
+    {x1:125, y1:542, x2:125, y2:558, color:'#1e3a5f'},
+    {x1:295, y1:542, x2:295, y2:558, color:'#1e3a5f'},
+    {x1:465, y1:542, x2:465, y2:558, color:'#1e3a5f'},
+    {x1:380, y1:688, x2:380, y2:730, color:'#00d4ff'},
+    {x1:380, y1:778, x2:380, y2:820, color:'#10b981'},
+  ]
+};
+
+// ═══════════════════════════════════════════════════════════
+// RENDERING ENGINE
+// ═══════════════════════════════════════════════════════════
+let currentDiagram = ROOT_DIAGRAM;
+let breadcrumbTrail = [{label:'Root Architecture', action:goHome}];
+let svgPanX = 0, svgPanY = 0, svgScale = 1;
+let isDragging = false, dragStart = {x:0, y:0};
+
+const svg = document.getElementById('diagram-svg');
+const tooltip = document.getElementById('tooltip');
+
+function renderDiagram(diag) {
+  currentDiagram = diag;
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', diag.viewBox || '0 0 760 920');
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const defs = document.createElementNS(ns, 'defs');
+  defs.innerHTML = `<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round"/></marker>
+  <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/></marker>
+  <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/></marker>`;
+  svg.appendChild(defs);
+
+  const g = document.createElementNS(ns, 'g');
+  g.setAttribute('id', 'diagram-root');
+  g.setAttribute('transform', `translate(${svgPanX},${svgPanY}) scale(${svgScale})`);
+  svg.appendChild(g);
+
+  // Draw arrows first (behind nodes)
+  (diag.arrows || []).forEach(a => {
+    const el = document.createElementNS(ns, 'line');
+    el.setAttribute('x1', a.x1); el.setAttribute('y1', a.y1);
+    el.setAttribute('x2', a.x2); el.setAttribute('y2', a.y2);
+    const col = a.color || '#00d4ff';
+    el.setAttribute('stroke', col);
+    el.setAttribute('stroke-width', '0.8');
+    el.setAttribute('fill', 'none');
+    if (a.dashed) el.setAttribute('stroke-dasharray', '4 3');
+    const mId = col === '#ef4444' ? 'arr-red' : col === '#10b981' ? 'arr-green' : 'arr';
+    el.setAttribute('marker-end', `url(#${mId})`);
+    g.appendChild(el);
+  });
+
+  // Draw nodes
+  diag.nodes.forEach(n => {
+    const data = NODE_DATA[n.id];
+    const isClickable = n.clickable !== false && data;
+
+    const grp = document.createElementNS(ns, 'g');
+    grp.setAttribute('class', 'node' + (isClickable ? ' clickable' : ''));
+    grp.style.cursor = isClickable ? 'pointer' : 'default';
+
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x', n.x); rect.setAttribute('y', n.y);
+    rect.setAttribute('width', n.w); rect.setAttribute('height', n.h);
+    rect.setAttribute('rx', '7');
+    rect.setAttribute('fill', n.color);
+    rect.setAttribute('stroke', n.stroke);
+    rect.setAttribute('stroke-width', '1');
+    grp.appendChild(rect);
+
+    const cx = n.x + n.w/2;
+    const ty1 = n.sub ? n.y + n.h/2 - 8 : n.y + n.h/2;
+
+    const t1 = document.createElementNS(ns, 'text');
+    t1.setAttribute('x', cx); t1.setAttribute('y', ty1);
+    t1.setAttribute('text-anchor', 'middle');
+    t1.setAttribute('dominant-baseline', 'central');
+    t1.setAttribute('fill', n.text);
+    t1.setAttribute('font-size', '11');
+    t1.setAttribute('font-weight', '600');
+    t1.setAttribute('font-family', "'JetBrains Mono', monospace");
+    t1.textContent = n.label;
+    grp.appendChild(t1);
+
+    if (n.sub) {
+      const t2 = document.createElementNS(ns, 'text');
+      t2.setAttribute('x', cx); t2.setAttribute('y', n.y + n.h/2 + 9);
+      t2.setAttribute('text-anchor', 'middle');
+      t2.setAttribute('dominant-baseline', 'central');
+      t2.setAttribute('fill', n.text);
+      t2.setAttribute('font-size', '9');
+      t2.setAttribute('font-family', "'JetBrains Mono', monospace");
+      t2.setAttribute('opacity', '0.6');
+      t2.textContent = n.sub;
+      grp.appendChild(t2);
+    }
+
+    // Hover glow effect
+    if (isClickable) {
+      grp.addEventListener('mouseenter', e => {
+        rect.setAttribute('stroke-width', '1.8');
+        rect.style.filter = 'brightness(1.4)';
+        showTooltip(e, n.label);
+      });
+      grp.addEventListener('mouseleave', () => {
+        rect.setAttribute('stroke-width', '1');
+        rect.style.filter = '';
+        hideTooltip();
+      });
+      grp.addEventListener('click', e => {
+        e.stopPropagation();
+        openNode(n.id, n.label);
+      });
+    }
+
+    g.appendChild(grp);
+  });
+
+  // Section label for parallel init
+  if (diag === ROOT_DIAGRAM) {
+    const dashRect = document.createElementNS(ns, 'rect');
+    dashRect.setAttribute('x', '34'); dashRect.setAttribute('y', '474');
+    dashRect.setAttribute('width', '522'); dashRect.setAttribute('height', '152');
+    dashRect.setAttribute('rx', '8'); dashRect.setAttribute('fill', 'none');
+    dashRect.setAttribute('stroke', '#253044'); dashRect.setAttribute('stroke-width', '0.7');
+    dashRect.setAttribute('stroke-dasharray', '5 4');
+    g.insertBefore(dashRect, g.firstChild.nextSibling);
+
+    const appRect = document.createElementNS(ns, 'rect');
+    appRect.setAttribute('x', '158'); appRect.setAttribute('y', '814');
+    appRect.setAttribute('width', '444'); appRect.setAttribute('height', '108');
+    appRect.setAttribute('rx', '8'); appRect.setAttribute('fill', 'rgba(16,185,129,0.04)');
+    appRect.setAttribute('stroke', '#064e3b'); appRect.setAttribute('stroke-width', '0.7');
+    appRect.setAttribute('stroke-dasharray', '5 4');
+    g.insertBefore(appRect, g.firstChild.nextSibling);
+  }
+
+  updateStatusBar();
+}
+
+function openNode(id, label) {
+  const data = NODE_DATA[id];
+  if (!data) return;
+
+  // Update breadcrumb
+  breadcrumbTrail.push({label, action: () => {
+    // already open, just close panel or re-render
+    openNode(id, label);
+  }});
+  updateBreadcrumb();
+
+  // Open panel
+  const panel = document.getElementById('info-panel');
+  const canvas = document.getElementById('canvas-panel');
+  panel.classList.add('open');
+  canvas.classList.add('shrunk');
+
+  // Set header
+  document.getElementById('info-title').textContent = data.title;
+  const tag = document.getElementById('info-tag');
+  tag.textContent = data.tag;
+  tag.style.color = data.tagColor;
+  tag.style.borderColor = data.tagColor + '44';
+  tag.style.background = data.tagColor + '11';
+
+  // Sub diagram
+  const subEl = document.getElementById('sub-diagram');
+  if (data.subDiagram && SUB_DIAGRAMS[data.subDiagram]) {
+    subEl.innerHTML = SUB_DIAGRAMS[data.subDiagram];
+    subEl.style.display = 'block';
+  } else {
+    subEl.innerHTML = '';
+    subEl.style.display = 'none';
+  }
+
+  // Content
+  const content = document.getElementById('info-content');
+  let html = '';
+
+  html += `<div class="desc-section">
+    <div class="desc-label">Overview</div>
+    <div class="desc-text">${data.desc}</div>
+  </div>`;
+
+  if (data.chips && data.chips.length) {
+    html += `<div class="desc-section"><div class="desc-label">Key components</div><div>`;
+    data.chips.forEach((c, i) => {
+      const col = data.chipColors[i] || 'blue';
+      html += `<span class="chip chip-${col}">${c}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  html += `<div class="desc-section">
+    <div class="desc-label">Execution sequence</div>
+    <ul class="step-list">`;
+  data.steps.forEach((s, i) => {
+    html += `<li><span class="step-num">${i+1}</span><span>${s}</span></li>`;
+  });
+  html += `</ul></div>`;
+
+  content.innerHTML = html;
+
+  // Update depth
+  document.getElementById('depth-indicator').textContent = `DEPTH: ${breadcrumbTrail.length - 1}`;
+  document.getElementById('statusbar').textContent = `Viewing: ${data.title}`;
+}
+
+function closePanel() {
+  document.getElementById('info-panel').classList.remove('open');
+  document.getElementById('canvas-panel').classList.remove('shrunk');
+  if (breadcrumbTrail.length > 1) breadcrumbTrail.pop();
+  updateBreadcrumb();
+  document.getElementById('depth-indicator').textContent = `DEPTH: ${breadcrumbTrail.length - 1}`;
+  document.getElementById('statusbar').textContent = 'Click any node to explore';
+}
+
+function goHome() {
+  closePanel();
+  breadcrumbTrail = [{label:'Root Architecture', action:goHome}];
+  updateBreadcrumb();
+  svgPanX = 0; svgPanY = 0; svgScale = 1;
+  renderDiagram(ROOT_DIAGRAM);
+  document.getElementById('depth-indicator').textContent = 'DEPTH: 0';
+}
+
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = '';
+  breadcrumbTrail.forEach((item, i) => {
+    const span = document.createElement('span');
+    span.className = 'bc-item' + (i === breadcrumbTrail.length - 1 ? ' active' : '');
+    span.textContent = item.label;
+    span.onclick = item.action;
+    bc.appendChild(span);
+    if (i < breadcrumbTrail.length - 1) {
+      const sep = document.createElement('span');
+      sep.className = 'bc-sep';
+      sep.textContent = '›';
+      bc.appendChild(sep);
+    }
+  });
+}
+
+function showTooltip(e, text) {
+  tooltip.textContent = 'Click to explore: ' + text;
+  tooltip.style.opacity = '1';
+  moveTooltip(e);
+}
+function hideTooltip() { tooltip.style.opacity = '0'; }
+function moveTooltip(e) {
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top = (e.clientY - 28) + 'px';
+}
+document.addEventListener('mousemove', moveTooltip);
+
+function zoom(factor) {
+  svgScale = Math.min(3, Math.max(0.3, svgScale * factor));
+  document.getElementById('diagram-root').setAttribute('transform',
+    `translate(${svgPanX},${svgPanY}) scale(${svgScale})`);
+}
+function resetZoom() {
+  svgScale = 1; svgPanX = 0; svgPanY = 0;
+  document.getElementById('diagram-root').setAttribute('transform',
+    `translate(0,0) scale(1)`);
+}
+
+// Pan support
+svg.addEventListener('mousedown', e => {
+  if (e.target === svg || e.target.tagName === 'line') {
+    isDragging = true;
+    dragStart = {x: e.clientX - svgPanX, y: e.clientY - svgPanY};
+    svg.style.cursor = 'grabbing';
+  }
+});
+document.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  svgPanX = e.clientX - dragStart.x;
+  svgPanY = e.clientY - dragStart.y;
+  const el = document.getElementById('diagram-root');
+  if (el) el.setAttribute('transform', `translate(${svgPanX},${svgPanY}) scale(${svgScale})`);
+});
+document.addEventListener('mouseup', () => { isDragging = false; svg.style.cursor = ''; });
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom(e.deltaY < 0 ? 1.1 : 0.9);
+}, {passive:false});
+
+function updateStatusBar() {
+  const clickable = (currentDiagram.nodes || []).filter(n => n.clickable !== false && NODE_DATA[n.id]).length;
+  document.getElementById('statusbar').textContent = `${clickable} interactive nodes · Drag to pan · Scroll to zoom`;
+}
+
+// Init
+renderDiagram(ROOT_DIAGRAM);
+</script>
+</body>
+</html>
